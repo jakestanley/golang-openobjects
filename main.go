@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/g3n/engine/app"
@@ -41,7 +43,9 @@ func main() {
 	// load an object
 	// TODO clean path
 	objPath := fmt.Sprintf("%s/%s", *assetsPath, "Ceres.obj")
-	decoded, err := obj.Decode(objPath, "")
+	preprocessedPath := ObjPreprocessCache(objPath)
+
+	decoded, err := obj.Decode(preprocessedPath, "")
 	if err != nil {
 		fmt.Println("error decoding obj: " + err.Error())
 		os.Exit(1)
@@ -63,4 +67,37 @@ func main() {
 		a.Gls().Clear(gls.DEPTH_BUFFER_BIT | gls.STENCIL_BUFFER_BIT | gls.COLOR_BUFFER_BIT)
 		renderer.Render(scene, cam)
 	})
+}
+
+func ObjPreprocessCache(objPath string) string {
+
+	processedPath := fmt.Sprintf("%s.pr", objPath)
+	fmt.Printf("Looking for '%s'\n", processedPath)
+	_, err := os.Stat(processedPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println("Processed file does not exist. Creating...")
+			objFile, _ := os.Open(objPath)
+			processedFile, _ := os.Create(processedPath)
+
+			defer objFile.Close()
+			defer processedFile.Close()
+
+			r := regexp.MustCompile(`^s\s{1}.+`)
+
+			scanner := bufio.NewScanner(objFile)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if !r.MatchString(line) {
+					processedFile.WriteString(fmt.Sprintln(line))
+				}
+			}
+
+		} else {
+			panic(err)
+		}
+	} else {
+		fmt.Println("Processed file exists. Loading...")
+	}
+	return processedPath
 }
